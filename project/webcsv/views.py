@@ -110,7 +110,7 @@ class SchemaDatasView(LoginRequiredMixin, View):
     def get(self, request, schema_id):
         schema = get_object_or_404(Schema, pk=schema_id, user=request.user)
         csvs = schema.schemacsv_set.all()
-        form = CountForm(initial={"count": 500})
+        form = CountForm(initial={"count": 200})
         context = {
             'title': 'Generate csv',
             'form': form,
