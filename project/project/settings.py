@@ -11,8 +11,8 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 """
 
 from pathlib import Path
-import dj_database_url
-import django_heroku
+# import dj_database_url
+# import django_heroku
 import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'cg#p$g+j9tax!#a3c11up@1$8obt32_+2&k3q+pmu)5%asj6yjpkag')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
@@ -86,7 +86,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
-        'CONN_MAX_AGE': 500,
+        'CONN_MAX_AGE': 200,
     }
 }
 
@@ -113,7 +113,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "Europe/Kiev"
 
 USE_I18N = True
 
@@ -121,7 +121,7 @@ USE_L10N = True
 
 USE_TZ = True
 
-# LOGIN Configuration
+# Auth Configuration
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 
@@ -143,19 +143,20 @@ if not os.path.exists(MEDIA_ROOT):
     os.mkdir(MEDIA_ROOT)
 
 # Celery Configuration Options
-CELERY_BROKER_URL = os.environ['REDIS_URL']
-CELERY_RESULT_BACKEND = os.environ['REDIS_URL']
+CELERY_BROKER_URL = 'redis://192.168.0.24:6379/0'
+CELERY_RESULT_BACKEND = 'redis://192.168.0.24:6379/1'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_TIMEZONE = "Europe/Kiev"
 CELERY_TASK_TIME_LIMIT = 60 * 2
+CELERY_TASK_IGNORE_RESULT = True
 
 # Heroku Configuration
-django_heroku.settings(locals())
-DATABASES['default'] = dj_database_url.config(conn_max_age=200, ssl_require=True)
+# django_heroku.settings(locals())
+# DATABASES['default'] = dj_database_url.config(conn_max_age=200, ssl_require=True)
 
 # SSL
-SECURE_SSL_REDIRECT = True
-SECURE_HSTS_SECONDS = 60 * 10
-CSRF_COOKIE_SECURE = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
+# SECURE_SSL_REDIRECT = True
+# SECURE_HSTS_SECONDS = 60 * 10
+# CSRF_COOKIE_SECURE = True
+# SECURE_CONTENT_TYPE_NOSNIFF = True

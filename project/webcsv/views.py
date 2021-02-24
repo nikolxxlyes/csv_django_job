@@ -11,6 +11,7 @@ from .models import Schema, SchemaCSV
 from . import csv_datatypes
 from . import tasks
 import json
+import os
 
 
 # Create your views here.
@@ -71,7 +72,8 @@ def new_schema(request):
 @login_required(login_url='login')
 def delete_schema(request, schema_id):
     if request.method == 'GET':
-        get_object_or_404(Schema, pk=schema_id, user=request.user).delete()
+        schema_obj = get_object_or_404(Schema, pk=schema_id, user=request.user)
+        schema_obj.delete()
         return redirect('webcsv:schemas')
 
 
@@ -136,10 +138,10 @@ def generate_csv(request, schema_id):
             csv_obj.save()
 
             # heroku crutch below
-            tasks.create_csv.run(schema_id, count, csv_obj.pk)
+            # tasks.create_csv.run(schema_id, count, csv_obj.pk)
 
             # Use the follow line not in heroku :)
-            # tasks.create_csv.delay(schema_id, count, csv_obj.pk)
+            tasks.create_csv.delay(schema_id, count, csv_obj.pk)
             new_csv_template = render_to_string('webcsv/_csv.html', request=request,
                                                 context={
                                                     'csv': csv_obj,
