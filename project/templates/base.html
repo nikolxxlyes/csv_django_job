@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport"
+	      content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<title>{{ title }}</title>
+
+	{% load bootstrap4 %}
+	{% bootstrap_css %}
+	{% load static %}
+	<link rel="shortcut icon" href="{% static 'favicon.png' %}" type="image/png">
+	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+	<nav class="navbar navbar-expand-lg navbar-light bg-light pl-5 pr-5">
+		<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarTogglerDemo01"
+		        aria-controls="navbarTogglerDemo01" aria-expanded="false" aria-label="Toggle navigation">
+			<span class="navbar-toggler-icon"></span>
+		</button>
+		<div class="collapse navbar-collapse" id="navbarTogglerDemo01">
+			<a class="navbar-brand" href="/">CVS job</a>
+			<ul class="navbar-nav mr-auto mt-2 mt-lg-0">
+				<li class="nav-item active">
+					<a class="nav-link" href="{% url 'webcsv:schemas' %}">Schemas<span class="sr-only">(current)</span></a>
+				</li>
+			</ul>
+			<div class="navbar-nav my-2 my-lg-0">
+				{% if user.is_authenticated %}
+				<li class="nav-item"><span class="navbar-text">Hello, {{ user.get_username }}</span></li>
+				<li class="nav-item"><a class="nav-link" href="{% url 'logout' %}">Log out</a></li>
+				{% else %}
+				<li class="nav-item"><a class="nav-link" href="{% url 'login' %}">Log in</a></li>
+				{% endif %}
+			</div>
+		</div>
+	</nav>
+	{% block head %} {% endblock %}
+
+</head>
+<body>
+	{% block sidebar %}<!-- insert default navigation text for every page --> {% endblock %}
+	<div class="container ml-5 mt-3">
+		{% block body %}
+		<!-- default content text (typically empty) -->
+
+		{% endblock %}
+	</div>
+</body>
+</html>

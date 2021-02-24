@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block head %}
+{% endblock %}
+{% block body %}
+<div class="d-flex justify-content-between">
+	<h2>{{ schema.name|capfirst }} - data sets</h2>
+	<div>
+		<form class="form-inline" onsubmit="genCSV(event)" data-gen-csv-url="{% url 'webcsv:gen_csv' schema.value %}">
+			{% csrf_token %}
+			{{ form.count.label_tag }}
+			<span class="ml-2">{{ form.count }}</span>
+			<button type="submit" class="btn btn-success ml-2" name='submit'>Generate data</button>
+		</form>
+	</div>
+</div>
+
+<table class="table table-bordered mt-4"  style="table-layout: fixed;" data-check-csv-url="{% url 'webcsv:check_csv' schema.value %}">
+	<thead>
+	<tr>
+		<th scope="col">#</th>
+		<th scope="col">Created</th>
+		<th scope="col">Status</th>
+		<th scope="col">Actions</th>
+	</tr>
+	</thead>
+	<tbody id="allCSV">
+	{% if csvs %}
+	{% for csv in csvs %}
+	{% include 'webcsv/_csv.html' %}
+	{% endfor %}
+	{% endif %}
+	</tbody>
+</table>
+<script type="text/javascript">
+	let schemaId = {{ schema|safe }}.value;
+	let statusId = {{ status_id|safe }}.frmt;
+	let checkCsvUrl = document.querySelector('table').getAttribute('data-check-csv-url');
+	let genCsvUrl = document.querySelector('form').getAttribute('data-gen-csv-url');
+
+	setInterval(() => {
+		updatePendingStatus();
+	}, 15000);
+
+	function updatePendingStatus() {
+		let csvs = document.querySelectorAll(`td[id^='${statusId}']`);
+		let updateCSV = [];
+		csvs.forEach(csv => {
+			if (!csv.firstElementChild.classList.contains('btn-secondary')) {
+				return;
+			}
+			updateCSV.push(csv.id.slice(statusId.length));
+		});
+		if (updateCSV.length) {
+			let data = JSON.stringify({
+				pendingCSV: updateCSV,
+			});
+			ajaxData(checkCsvUrl, data, method = 'POST', onSuccessFunc = (response) => {
+				let readyCSV = response.result.ready;
+				if (readyCSV && readyCSV.length) {
+					for (csvId of readyCSV) {
+						let statusColumn = document.getElementById(statusId + csvId);
+						let currentButton = statusColumn.firstElementChild;
+
+						currentButton.innerText = 'Ready';
+						currentButton.classList.remove('btn-secondary');
+						currentButton.classList.add('btn-success');
+						let downloadLink = statusColumn.nextElementSibling.firstElementChild;
+						downloadLink.hidden = false;
+					}
+				}
+			});
+		}
+	}
+
+	function genCSV(event) {
+		event.preventDefault();
+		let form = event.target;
+		let lastCSV = document.querySelector('#allCSV').lastElementChild;
+
+		let data = JSON.stringify({
+			count: form.querySelector("input[name='count']").value,
+			lastNumber: lastCSV ? lastCSV.querySelector("#order-csv").innerText : 0,
+		});
+
+		ajaxData(genCsvUrl, data, method = 'POST', onSuccessFunc = (response) => {
+			document.querySelector('#allCSV').insertAdjacentHTML('beforeend', response.result);
+		});
+	}
+
+	function ajaxData(url, data, method = 'POST',
+	                  onSuccessFunc = (i) => (console.log(i)),
+	                  onErrorFunc = (i) => (console.log(i))) {
+		let headers = {
+			'credentials': 'same-origin',
+			'Content-Type': 'application/json',
+			'X-Requested-With': 'XMLHttpRequest',
+			"X-CSRFToken": document.querySelector("input[name='csrfmiddlewaretoken']").value
+		};
+
+		fetch(url, {
+			method: method,
+			body: data,
+			headers: headers
+		}).then(response => response.json())
+				.then((data) => {
+					data.error ? onErrorFunc(data) : onSuccessFunc(data);
+				})
+				.catch(error => onErrorFunc(error));
+	}
+
+</script>
+{% endblock %}

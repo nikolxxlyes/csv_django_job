@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block body %}
+<div class="d-flex justify-content-between">
+	<h2>Data schemas</h2>
+	<div class="form-inline">
+		<button class="btn btn-success ml-2" onclick="window.location.href=`{% url 'webcsv:new_schema' %}`">New schema</button>
+	</div>
+</div>
+<table class="table table-bordered mt-4">
+	<thead>
+	<tr>
+		<th scope="col">#</th>
+		<th scope="col">Title</th>
+		<th scope="col">Modified</th>
+		<th scope="col">Actions</th>
+	</tr>
+	</thead>
+	{% if schemas %}
+	{% for schema in schemas %}
+	<tbody>
+	<tr>
+		<th scope="row">{{ forloop.counter }}</th>
+		<td><a href="{% url 'webcsv:csvs' schema.id %}">{{ schema.name }}</a></td>
+		<td>{{ schema.modified|date:"Y-m-d" }}</td>
+		<td>
+			<a href="{% url 'webcsv:edit_schema' schema.id %}">Edit schema</a>
+			<a class="text-danger pl-3" href="{% url 'webcsv:delete_schema' schema.id %}">Delete</a>
+		</td>
+	</tr>
+	{% endfor %}
+	{% endif %}
+	</tbody>
+</table>
+{% endblock %}

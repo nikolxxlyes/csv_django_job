@@ -1,0 +1,16 @@
+<tr>
+	<th scope="row" id="order-csv">{{ forloop.counter }}</th>
+	<td>{{ csv.created|date:"Y-m-d" }}</td>
+	{% with pk=csv.pk|stringformat:'s' %}
+	<td id="{{ status_id.frmt|add:pk }}">
+		{% if csv.ready %}
+		<button type="button" class="btn btn-sm btn-success" disabled>Ready</button>
+	</td>
+	<td><a href="{% url 'webcsv:download_csv' csv.pk %}">Download</a></td>
+	{% else %}
+	<button type="button" class="btn btn-sm btn-secondary" disabled>Processing</button>
+	</td>
+	<td><a href="{% url 'webcsv:download_csv' csv.pk %}" hidden>Download</a></td>
+	{% endif %}
+	{% endwith %}
+</tr>
