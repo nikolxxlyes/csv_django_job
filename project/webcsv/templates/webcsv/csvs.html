@@ -4,7 +4,7 @@
 {% endblock %}
 {% block body %}
 <div class="d-flex justify-content-between">
-	<h2>{{ schema.name|capfirst }} - data sets</h2>
+	<h2>{{ schema.name }} - generate csv</h2>
 	<div>
 		<form class="form-inline" onsubmit="genCSV(event)" data-gen-csv-url="{% url 'webcsv:gen_csv' schema.value %}">
 			{% csrf_token %}

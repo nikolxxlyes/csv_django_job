@@ -86,7 +86,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
-        'CONN_MAX_AGE': 500,
+        'CONN_MAX_AGE': 200,
     }
 }
 
@@ -113,7 +113,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "Europe/Kiev"
 
 USE_I18N = True
 
@@ -121,7 +121,7 @@ USE_L10N = True
 
 USE_TZ = True
 
-# LOGIN Configuration
+# Auth Configuration
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 
@@ -149,6 +149,7 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_TIMEZONE = "Europe/Kiev"
 CELERY_TASK_TIME_LIMIT = 60 * 2
+CELERY_TASK_IGNORE_RESULT = True
 
 # Heroku Configuration
 django_heroku.settings(locals())
