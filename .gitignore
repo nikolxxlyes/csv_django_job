@@ -1,4 +1,6 @@
 /venv/
 /project/db.sqlite3
 /project/media/*
+__pycache__/
 /.idea/
+secret_key.txt
