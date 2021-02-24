@@ -2,9 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.contrib.auth.models import User
 from datetime import datetime
-
 import os.path
-
 
 # Create your models here.
 class Schema(models.Model):

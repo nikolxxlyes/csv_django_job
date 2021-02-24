@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 """
 
 from pathlib import Path
+import dj_database_url
+import django_heroku
 import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -30,7 +32,7 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
+    # 'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -53,6 +55,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+
 ]
 
 ROOT_URLCONF = 'project.urls'
@@ -82,6 +86,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        'CONN_MAX_AGE': 500,
     }
 }
 
@@ -123,47 +128,34 @@ LOGOUT_REDIRECT_URL = '/'
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATIC_URL = '/static/'
-STATIC_ROOT = "/var/www/example.com/static/"
 STATICFILES_DIRS = [
-        os.path.join(BASE_DIR, 'static'),
-        ]
+    os.path.join(BASE_DIR, 'static'),
+]
+
+# Simplified static file serving.
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.abspath(os.path.join(BASE_DIR, 'media'))
-
+if not os.path.exists(MEDIA_ROOT):
+    os.mkdir(MEDIA_ROOT)
 
 # Celery Configuration Options
-CELERY_BROKER_URL = 'redis://192.168.0.24:6379/1'
-CELERY_RESULT_BACKEND = 'redis://192.168.0.24:6379/0'
+CELERY_BROKER_URL = os.environ['REDIS_URL']
+CELERY_RESULT_BACKEND = os.environ['REDIS_URL']
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+CELERY_TIMEZONE = "Europe/Kiev"
+CELERY_TASK_TIME_LIMIT = 60 * 2
 
+# Heroku Configuration
+django_heroku.settings(locals())
+DATABASES['default'] = dj_database_url.config(conn_max_age=200, ssl_require=True)
 
-
-
-
-
-
-
-
-# CELERY_TIMEZONE = "Europe/Kiev"
-# CELERY_TASK_TIME_LIMIT = 5 * 60
-
-# CELERY_TASK_ROUTES = {
-#     'webcsv.tasks.create_csv': {'queue': 'create_csv', },
-# }
-
-# CELERY_QUEUES = (
-#     Queue('high', Exchange('high'), routing_key='high'),
-#     Queue('normal', Exchange('normal'), routing_key='normal'),
-#     Queue('low', Exchange('low'), routing_key='low'),
-# )
-# CELERY_DEFAULT_QUEUE = 'normal'
-# CELERY_DEFAULT_EXCHANGE = 'normal'
-# CELERY_DEFAULT_ROUTING_KEY = 'normal'
-# CELERY_ROUTES = {
-#     -- HIGH PRIORITY QUEUE -- #
-    # 'myapp.tasks.check_payment_status': {'queue': 'high'},
-    # -- LOW PRIORITY QUEUE -- #
-    # 'myapp.tasks.close_session': {'queue': 'low'},
-# }
+# SSL
+SECURE_SSL_REDIRECT = True
+SECURE_HSTS_SECONDS = 60 * 10
+CSRF_COOKIE_SECURE = True
+SECURE_CONTENT_TYPE_NOSNIFF = True

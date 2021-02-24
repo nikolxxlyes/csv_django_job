@@ -103,8 +103,8 @@
 			body: data,
 			headers: headers
 		}).then(response => response.json())
-				.then((data) => {
-					data.error ? onErrorFunc(data) : onSuccessFunc(data);
+				.then(data => {
+					data.error_ajax ? onErrorFunc(data) : onSuccessFunc(data);
 				})
 				.catch(error => onErrorFunc(error));
 	}

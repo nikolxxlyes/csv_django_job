@@ -1,17 +1,16 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.http import FileResponse, HttpResponseNotAllowed, HttpResponse, JsonResponse
 from django.views.generic import ListView, View
 from django.views.decorators.http import require_GET, require_POST
-from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from .models import Schema, SchemaCSV, SchemaColumn
+from django.contrib.auth.decorators import login_required
+from django.template.loader import render_to_string
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import FileResponse, HttpResponseNotAllowed, JsonResponse
+from django.forms import formset_factory
 from .forms import SchemaForm, SchemaColumnForm, CountForm, SchemaColumnFormSet
-from . import csv_datatypes as csv_data
-from django.forms import formset_factory, inlineformset_factory, modelformset_factory
-from django.views.generic.edit import UpdateView
+from .models import Schema, SchemaCSV
+from . import csv_datatypes
 from . import tasks
 import json
-from django.template.loader import render_to_string
 
 
 # Create your views here.
@@ -24,6 +23,11 @@ class SchemasView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         return Schema.objects.filter(user=self.request.user)
+
+    def get_context_data(self, *args, **kwargs):
+        context_data = super().get_context_data(*args, **kwargs)
+        context_data['title'] = 'Schemas'
+        return context_data
 
 
 @login_required(login_url='login')
@@ -44,9 +48,9 @@ def new_schema(request):
                         new_column = form.save(commit=False)
                         new_column.schema = current_schema
                         new_column.order = form.cleaned_data['ORDER']
-                        if new_column.datatype in csv_data.with_extra:
+                        if new_column.datatype in csv_datatypes.with_extra:
                             new_column.extra = {}
-                            for k_form, k_model in csv_data.with_extra[new_column.datatype].extra_params.items():
+                            for k_form, k_model in csv_datatypes.with_extra[new_column.datatype].extra_params.items():
                                 new_column.extra[k_model] = form.cleaned_data[k_form]
                         new_column.save()
                 return redirect('webcsv:schemas')
@@ -55,9 +59,10 @@ def new_schema(request):
         SchemaColumnFormSet = formset_factory(form=SchemaColumnForm, can_order=True)
         formset = SchemaColumnFormSet(prefix=prefix)
     context = {
+        'title': 'New schema',
         'schema_form': schema_form,
         'formset': formset,
-        'with_extra': {'value': list(csv_data.with_extra.keys())},
+        'with_extra': {'value': list(csv_datatypes.with_extra.keys())},
         'base_prefix': {'value': prefix},
     }
     return render(request, 'webcsv/new_schema.html', context=context)
@@ -89,9 +94,10 @@ def edit_schema(request, schema_id):
         formset = SchemaColumnFormSet(prefix=prefix, instance=schema_obj,
                                       hide_fields=['DELETE', 'schema', 'id'])
     context = {
+        'title': 'Edit schema',
         'schema_form': schema_form,
         'formset': formset,
-        'with_extra': {'value': list(csv_data.with_extra.keys())},
+        'with_extra': {'value': list(csv_datatypes.with_extra.keys())},
         'base_prefix': {'value': prefix},
     }
     return render(request, 'webcsv/edit_schema.html', context=context)
@@ -118,7 +124,7 @@ class SchemaDatasView(LoginRequiredMixin, View):
 
 @require_POST
 def generate_csv(request, schema_id):
-    status = {'error': True, 'result': ''}
+    status = {'error_ajax': True, 'result': ''}
     if request.is_ajax():
         try:
             req_data = json.loads(request.body.decode())
@@ -128,20 +134,25 @@ def generate_csv(request, schema_id):
             schema_obj = Schema.objects.get(pk=schema_id)
             csv_obj = SchemaCSV.create_fp(schema_obj=schema_obj)
             csv_obj.save()
-            tasks.create_csv.delay(schema_id, count, csv_obj.pk)
-            template = render_to_string('webcsv/_csv.html', request=request,
-                                        context={
-                                            'csv': csv_obj,
-                                            'status_id': {'frmt': 'status-csv-'},
-                                            'forloop': {'counter': last_number + 1}})
+
+            # heroku crutch below
+            tasks.create_csv.run(schema_id, count, csv_obj.pk)
+
+            # Use the follow line not in heroku :)
+            # tasks.create_csv.delay(schema_id, count, csv_obj.pk)
+            new_csv_template = render_to_string('webcsv/_csv.html', request=request,
+                                                context={
+                                                    'csv': csv_obj,
+                                                    'status_id': {'frmt': 'status-csv-'},
+                                                    'forloop': {'counter': last_number + 1}})
             response = {
-                'error': False,
-                'status': 'Http column',
-                'result': template,
+                'error_ajax': False,
+                'status': 'new csv template',
+                'result': new_csv_template,
             }
             return JsonResponse(response)
-        except Exception as e:
-            status['status'] = '{} {}'.format(type(e), e)
+        except:
+            status['status'] = 'Internal error'
     else:
         status['status'] = 'Not allowed method'
     return JsonResponse(status)
@@ -149,22 +160,22 @@ def generate_csv(request, schema_id):
 
 @require_POST
 def check_csv(request, schema_id):
-    status = {'error': True, 'result': ''}
+    status = {'error_ajax': True, 'result': ''}
     if request.is_ajax():
         try:
             req_data = json.loads(request.body.decode())
-            wait_ids = req_data['pendingCSV']
+            pending_csv = req_data['pendingCSV']
 
-            db_wait_ids = Schema.objects.get(pk=schema_id).schemacsv_set.filter(ready=False).only("id")
-            ready_csv = [csv_id for csv_id in wait_ids if not int(csv_id) in db_wait_ids]
+            db_pending_csv = Schema.objects.get(pk=schema_id).schemacsv_set.filter(ready=False).only("id")
+            ready_csv = [csv_id for csv_id in pending_csv if not int(csv_id) in db_pending_csv]
             response = {
-                'error': False,
+                'error_ajax': False,
                 'status': 'Http ready column',
                 'result': {'ready': ready_csv},
             }
             return JsonResponse(response)
-        except Exception as e:
-            status['status'] = '{} {}'.format(type(e), e)
+        except:
+            status['status'] = 'Internal error'
     else:
         status['status'] = 'Not allowed method'
     return JsonResponse(status)

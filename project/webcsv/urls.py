@@ -17,5 +17,5 @@ urlpatterns = [
     path('media/<int:csv_id>/', views.download_csv, name='download_csv'),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Allow download file from media
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
