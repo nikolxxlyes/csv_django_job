@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from datetime import datetime
 import os.path
 
+
 # Create your models here.
 class Schema(models.Model):
     DELIMITER_CHOICES = (
@@ -22,7 +23,6 @@ class Schema(models.Model):
                                  default=DELIMITER_CHOICES[0], verbose_name='Column separator')
     quotechar = models.CharField(max_length=1, choices=QUOTE_CHOICES,
                                  default=QUOTE_CHOICES[0], verbose_name='String character')
-    created = models.DateTimeField(auto_now_add=True, verbose_name='Created')
     modified = models.DateTimeField(auto_now=True, verbose_name='Modified')
 
     class Meta:
@@ -31,6 +31,14 @@ class Schema(models.Model):
 
     def __str__(self):
         return self.name
+
+    def delete(self, *args, **kwargs):
+        for csv_obj in self.schemacsv_set.only('path'):
+            try:
+                os.remove(csv_obj.path)
+            except FileNotFoundError:
+                pass
+        return super().delete(*args, **kwargs)
 
 
 class SchemaColumn(models.Model):
@@ -67,9 +75,7 @@ class SchemaCSV(models.Model):
     @classmethod
     def create_fp(cls, schema_obj):
         timestamp = int(datetime.now().timestamp())
-        filename = f'{schema_obj.name}_{timestamp}.csv'
+        schema_name = schema_obj.name.strip().replace(' ', '_').lower()
+        filename = f'{schema_name}_{timestamp}.csv'
         path = os.path.join(settings.MEDIA_ROOT, filename)
         return cls(schema=schema_obj, path=path)
-
-    def get_filename(self):
-        return os.path.basename(self.path)
