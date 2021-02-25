@@ -1,6 +1,6 @@
 from django import forms
-from .models import Schema, SchemaColumn
-from . import csv_datatypes as csv_data
+from .models import Schema, Column
+from .lib.generator_csv import GeneratorCSV
 
 
 # Create your forms here.
@@ -10,13 +10,13 @@ class SchemaForm(forms.ModelForm):
         fields = ['name', 'delimiter', 'quotechar']
 
 
-class SchemaColumnForm(forms.ModelForm):
+class ColumnForm(forms.ModelForm):
     from_column = forms.IntegerField(min_value=0, label='From', required=False)
     to_column = forms.IntegerField(min_value=0, label='To', required=False)
-    datatype = forms.ChoiceField(choices=csv_data.choices, label='Type')
+    datatype = forms.ChoiceField(choices=GeneratorCSV.choices, label='Type')
 
     class Meta:
-        model = SchemaColumn
+        model = Column
         fields = ['header', 'datatype', 'from_column', 'to_column']
 
 
@@ -24,12 +24,12 @@ class CountForm(forms.Form):
     count = forms.IntegerField(min_value=0, label='Rows')
 
 
-BaseFormSet = forms.inlineformset_factory(parent_model=Schema, model=SchemaColumn, form=SchemaColumnForm,
-                                          can_order=True,can_delete=True,
+BaseFormSet = forms.inlineformset_factory(parent_model=Schema, model=Column, form=ColumnForm,
+                                          can_order=True, can_delete=True,
                                           extra=1, min_num=1, validate_min=True)
 
 
-class SchemaColumnFormSet(BaseFormSet):
+class ColumnFormSet(BaseFormSet):
     def __init__(self, *args, **kwargs):
         hide_fields = kwargs.pop('hide_fields') if 'hide_fields' in kwargs else []
         super().__init__(*args, **kwargs)
@@ -45,7 +45,6 @@ class SchemaColumnFormSet(BaseFormSet):
         valid = super().is_valid(*args, **kwargs)
 
         for form in self.forms:
-            # print(form.cleaned_data)
             if form.cleaned_data:
                 self.pack_extra_params(form)
                 form.instance.order = form.cleaned_data['ORDER']
@@ -59,14 +58,19 @@ class SchemaColumnFormSet(BaseFormSet):
 
     def pack_extra_params(self, form):
         new_column = form.instance
-        if new_column.datatype in csv_data.with_extra:
-            new_column.extra = {}
-            for k_form, k_model in csv_data.with_extra[new_column.datatype].extra_params.items():
-                new_column.extra[k_model] = form.cleaned_data[k_form]
+        datatype = new_column
+
+        extra = {}
+        if datatype in GeneratorCSV.with_extra:
+            datatype_obj = GeneratorCSV.get_datatype_obj(datatype)
+            for param in datatype_obj.extra_params:
+                extra[param] = form.cleaned_data[param]
+
+        new_column.extra = extra
 
     def unpack_extra_params(self, form):
         datatype = form.instance.datatype
-        if datatype in csv_data.with_extra:
-            extra_params = csv_data.with_extra[datatype].extra_params
-            for k_form, k_model in extra_params.items():
-                form.fields[k_form].initial = form.instance.extra[k_model]
+        if datatype in GeneratorCSV.with_extra:
+            datatype_obj = GeneratorCSV.get_datatype_obj(datatype)
+            for param in datatype_obj.extra_params:
+                form.fields[param].initial = form.instance.extra[param]

@@ -6,12 +6,16 @@ from django.template.loader import render_to_string
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import FileResponse, HttpResponseNotAllowed, JsonResponse
 from django.forms import formset_factory
-from .forms import SchemaForm, SchemaColumnForm, CountForm, SchemaColumnFormSet
-from .models import Schema, SchemaCSV
-from . import csv_datatypes
+from .lib.generator_csv import GeneratorCSV
+from .forms import SchemaForm, ColumnForm, CountForm, ColumnFormSet
+from .models import Schema, CSV
 from . import tasks
 import json
 import os
+
+# HEROKU_FIX_FILE_CELERY
+from django.conf import settings as django_setting
+from django.core.files.base import ContentFile
 
 
 # Create your views here.
@@ -36,7 +40,7 @@ def new_schema(request):
     prefix = 'cform'
     if request.method == 'POST':
         schema_form = SchemaForm(data=request.POST)
-        SchemaColumnFormSet = formset_factory(form=SchemaColumnForm, can_order=True,
+        SchemaColumnFormSet = formset_factory(form=ColumnForm, can_order=True,
                                               min_num=1, validate_min=True)
         formset = SchemaColumnFormSet(request.POST, prefix=prefix)
         if schema_form.is_valid():
@@ -49,22 +53,26 @@ def new_schema(request):
                         new_column = form.save(commit=False)
                         new_column.schema = current_schema
                         new_column.order = form.cleaned_data['ORDER']
-                        if new_column.datatype in csv_datatypes.with_extra:
-                            new_column.extra = {}
-                            for k_form, k_model in csv_datatypes.with_extra[new_column.datatype].extra_params.items():
-                                new_column.extra[k_model] = form.cleaned_data[k_form]
+                        if new_column.datatype in GeneratorCSV.with_extra:
+                            extra = {}
+                            datatype_obj = GeneratorCSV.get_datatype_obj(new_column.datatype)
+                            for param in datatype_obj.extra_params:
+                                extra[param] = form.cleaned_data[param]
+
+                            new_column.extra = extra
+
                         new_column.save()
                 return redirect('webcsv:schemas')
     else:
         schema_form = SchemaForm()
-        SchemaColumnFormSet = formset_factory(form=SchemaColumnForm, can_order=True)
+        SchemaColumnFormSet = formset_factory(form=ColumnForm, can_order=True)
         formset = SchemaColumnFormSet(prefix=prefix)
     context = {
         'title': 'New schema',
         'schema_form': schema_form,
         'formset': formset,
-        'with_extra': {'value': list(csv_datatypes.with_extra.keys())},
-        'base_prefix': {'value': prefix},
+        'with_extra': GeneratorCSV.with_extra,
+        'base_prefix': prefix,
     }
     return render(request, 'webcsv/new_schema.html', context=context)
 
@@ -84,7 +92,7 @@ def edit_schema(request, schema_id):
 
     if request.method == 'POST':
         schema_form = SchemaForm(data=request.POST, instance=schema_obj)
-        formset = SchemaColumnFormSet(request.POST, prefix=prefix, instance=schema_obj,
+        formset = ColumnFormSet(request.POST, prefix=prefix, instance=schema_obj,
                                       hide_fields=['DELETE', 'schema', 'id'])
         if schema_form.is_valid():
             schema_form.save()
@@ -93,14 +101,14 @@ def edit_schema(request, schema_id):
                 return redirect('webcsv:schemas')
     else:
         schema_form = SchemaForm(instance=schema_obj)
-        formset = SchemaColumnFormSet(prefix=prefix, instance=schema_obj,
+        formset = ColumnFormSet(prefix=prefix, instance=schema_obj,
                                       hide_fields=['DELETE', 'schema', 'id'])
     context = {
         'title': 'Edit schema',
         'schema_form': schema_form,
         'formset': formset,
-        'with_extra': {'value': list(csv_datatypes.with_extra.keys())},
-        'base_prefix': {'value': prefix},
+        'with_extra': GeneratorCSV.with_extra,
+        'base_prefix': prefix,
     }
     return render(request, 'webcsv/edit_schema.html', context=context)
 
@@ -110,16 +118,16 @@ class SchemaDatasView(LoginRequiredMixin, View):
     redirect_field_name = 'next'
 
     def get(self, request, schema_id):
-        schema = get_object_or_404(Schema, pk=schema_id, user=request.user)
-        csvs = schema.schemacsv_set.all()
+        schema_obj = get_object_or_404(Schema, pk=schema_id, user=request.user)
+        csvs = schema_obj.csv_set.all()
         form = CountForm(initial={"count": 200})
+
         context = {
             'title': 'Generate csv',
             'form': form,
-            'schema': {'value': schema.pk, 'name': schema.name},
+            'schema_obj': schema_obj,
             'csvs': csvs,
-            'status_id_': 'status-csv-',
-            'status_id': {'frmt': 'status-csv-'},
+            'status_pending': 'pending',
         }
         return render(request, 'webcsv/csvs.html', context=context)
 
@@ -134,21 +142,18 @@ def generate_csv(request, schema_id):
             last_number = int(req_data['lastNumber'])
 
             schema_obj = Schema.objects.get(pk=schema_id)
-            csv_obj = SchemaCSV.create_fp(schema_obj=schema_obj)
+            csv_obj = CSV.create_fp(schema_obj=schema_obj)
             csv_obj.save()
 
-            # heroku crutch below
-            tasks.create_csv.run(schema_id, count, csv_obj.pk)
-
-            # Use the follow line not in heroku :)
-            # tasks.create_csv.delay(schema_id, count, csv_obj.pk)
+            tasks.create_csv.delay(schema_id, count, csv_obj.pk)
             new_csv_template = render_to_string('webcsv/_csv.html', request=request,
                                                 context={
                                                     'csv': csv_obj,
-                                                    'status_id': {'frmt': 'status-csv-'},
+                                                    'status_pending': 'pending',
                                                     'forloop': {'counter': last_number + 1}})
             response = {
                 'error_ajax': False,
+                'csv_id': csv_obj.id,
                 'status': 'new csv template',
                 'result': new_csv_template,
             }
@@ -166,17 +171,31 @@ def check_csv(request, schema_id):
     if request.is_ajax():
         try:
             req_data = json.loads(request.body.decode())
-            pending_csv = req_data['pendingCSV']
+            ajax_csv = req_data['pendingCSV']
+            if not isinstance(ajax_csv[0], int):
+                ajax_csv = list(map(lambda i: int(i), ajax_csv))
 
-            db_pending_csv = Schema.objects.get(pk=schema_id).schemacsv_set.filter(ready=False).only("id")
-            ready_csv = [csv_id for csv_id in pending_csv if not int(csv_id) in db_pending_csv]
+            csvs_objs = Schema.objects.get(pk=schema_id).csv_set.all()
+
+            ready_csv = []
+            pending_csv = []
+            error_csv = []
+            for csv_obj in csvs_objs.filter(pk__in=ajax_csv):
+                if csv_obj.ready == True:
+                    ready_csv.append(csv_obj.id)
+                elif csv_obj.ready == False:
+                    pending_csv.append(csv_obj.id)
+                elif csv_obj.ready == None:
+                    error_csv.append(csv_obj.id)
+
             response = {
                 'error_ajax': False,
                 'status': 'Http ready column',
-                'result': {'ready': ready_csv},
+                'result': {'ready_csv': ready_csv, 'pending_csv': pending_csv, 'error_csv': error_csv},
             }
             return JsonResponse(response)
-        except:
+        except Exception as e:
+            # print(e,type(e))
             status['status'] = 'Internal error'
     else:
         status['status'] = 'Not allowed method'
@@ -187,7 +206,23 @@ def check_csv(request, schema_id):
 @require_GET
 def download_csv(request, csv_id):
     if request.method == 'GET':
-        csv_odj = get_object_or_404(SchemaCSV, pk=csv_id, schema__user=request.user)
-        path = csv_odj.path
-        return FileResponse(open(path, 'rb'), as_attachment=True)
+        csv_obj = get_object_or_404(CSV, pk=csv_id, schema__user=request.user)
+        path = csv_obj.path
+
+        if django_setting.HEROKU_FIX_FILE_CELERY:
+            try:
+                data = tasks.get_file_data.delay(path, csv_id).get(timeout=5)
+            except:
+                return redirect('webcsv:csvs', csv_obj.schema.pk)
+            data = data.encode()
+            file_obj = ContentFile(data, name=csv_obj.filename).open('rb')
+        else:
+            try:
+                file_obj = open(path, 'rb')
+            except FileNotFoundError:
+                csv_obj.ready = None
+                csv_obj.save()
+                return redirect('webcsv:csvs', csv_obj.schema.pk)
+
+        return FileResponse(file_obj, as_attachment=True)
     return HttpResponseNotAllowed(['GET'])

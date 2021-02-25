@@ -33,7 +33,7 @@ class Schema(models.Model):
         return self.name
 
     def delete(self, *args, **kwargs):
-        for csv_obj in self.schemacsv_set.only('path'):
+        for csv_obj in self.csv_set.only('path'):
             try:
                 os.remove(csv_obj.path)
             except FileNotFoundError:
@@ -41,13 +41,12 @@ class Schema(models.Model):
         return super().delete(*args, **kwargs)
 
 
-class SchemaColumn(models.Model):
+class Column(models.Model):
     schema = models.ForeignKey(Schema, on_delete=models.CASCADE, verbose_name='Schema ID')
     header = models.CharField(max_length=100, verbose_name='Column name')
     datatype = models.CharField(max_length=100, verbose_name='Type')
     order = models.SmallIntegerField(default=0, db_index=True, verbose_name='Order')
     extra = models.JSONField(null=True, blank=True, verbose_name='Extra')
-    created = models.DateTimeField(auto_now_add=True, verbose_name='Created')
     modified = models.DateTimeField(auto_now=True, verbose_name='Modified')
 
     class Meta:
@@ -59,10 +58,10 @@ class SchemaColumn(models.Model):
         return f'[{self.order}] {self.header}'
 
 
-class SchemaCSV(models.Model):
+class CSV(models.Model):
     schema = models.ForeignKey(Schema, on_delete=models.CASCADE, verbose_name='Schema ID')
     path = models.CharField(max_length=100, verbose_name='Path')
-    ready = models.BooleanField(default=False, db_index=True, verbose_name='Status')
+    ready = models.BooleanField(default=False, null=True, db_index=True, verbose_name='Status')
     created = models.DateTimeField(auto_now_add=True, verbose_name='Created')
 
     class Meta:
@@ -79,3 +78,7 @@ class SchemaCSV(models.Model):
         filename = f'{schema_name}_{timestamp}.csv'
         path = os.path.join(settings.MEDIA_ROOT, filename)
         return cls(schema=schema_obj, path=path)
+
+    @property
+    def filename(self):
+        return os.path.basename(self.path)

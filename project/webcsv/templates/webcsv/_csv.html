@@ -1,16 +1,26 @@
 <tr>
 	<th scope="row" id="order-csv">{{ forloop.counter }}</th>
 	<td>{{ csv.created|date:"Y-m-d" }}</td>
-	{% with pk=csv.pk|stringformat:'s' %}
-	<td id="{{ status_id.frmt|add:pk }}">
-		{% if csv.ready %}
-		<button type="button" class="btn btn-sm btn-success" disabled>Ready</button>
+	{% if csv.ready %}
+	<td>
+		<button type="button" class="btn btn-sm btn-success"  disabled>Ready</button>
 	</td>
-	<td><a href="{% url 'webcsv:download_csv' csv.pk %}">Download</a></td>
+	<td>
+		<a href="{% url 'webcsv:download_csv' csv.pk %}">Download</a>
+	</td>
+	{% elif csv.ready == False%}
+	<td>
+		<button type="button" class="btn btn-sm btn-secondary" data-csv_id="{{ csv.pk }}" data-status="{{ status_pending }}" disabled>Processing</button>
+	</td>
+	<td>
+		<a href="{% url 'webcsv:download_csv' csv.pk %}" data-csv_id="{{ csv.pk }}" hidden>Download</a>
+	</td>
 	{% else %}
-	<button type="button" class="btn btn-sm btn-secondary" disabled>Processing</button>
+	<td>
+		<button type="button" class="btn btn-sm btn-danger" disabled>Error</button>
 	</td>
-	<td><a href="{% url 'webcsv:download_csv' csv.pk %}" hidden>Download</a></td>
+	<td>
+		<a href="{% url 'webcsv:download_csv' csv.pk %}" hidden>Download</a>
+	</td>
 	{% endif %}
-	{% endwith %}
 </tr>

@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'cg#p$g+j9tax!#a3c11up@1$8obt32_+2&k3q+pmu)5%asj6yjpkag')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = os.environ.get('DJANGO_DEBUG', False)
 
 ALLOWED_HOSTS = ['*']
 
@@ -56,7 +56,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
-
 ]
 
 ROOT_URLCONF = 'project.urls'
@@ -127,7 +126,6 @@ LOGOUT_REDIRECT_URL = '/'
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
-
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [
@@ -143,8 +141,8 @@ if not os.path.exists(MEDIA_ROOT):
     os.mkdir(MEDIA_ROOT)
 
 # Celery Configuration Options
-CELERY_BROKER_URL = os.environ['REDIS_URL']
-CELERY_RESULT_BACKEND = os.environ['REDIS_URL']
+CELERY_BROKER_URL = 'redis://192.168.0.24:6379/0'
+CELERY_RESULT_BACKEND = 'redis://192.168.0.24:6379/1'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_TIMEZONE = "Europe/Kiev"
@@ -152,11 +150,55 @@ CELERY_TASK_TIME_LIMIT = 60 * 2
 CELERY_TASK_IGNORE_RESULT = True
 
 # Heroku Configuration
+HEROKU_FIX_FILE_CELERY = True
 django_heroku.settings(locals())
 DATABASES['default'] = dj_database_url.config(conn_max_age=200, ssl_require=True)
 
-# SSL
+# SSL Configuration
 SECURE_SSL_REDIRECT = True
 SECURE_HSTS_SECONDS = 60 * 10
 CSRF_COOKIE_SECURE = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Logging Configuration
+LOGS_PATH = os.path.join(BASE_DIR, "full.log")
+
+logger = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'django.server': {
+            'format': '[{asctime}] {message}',
+            'style': '{',
+            'datefmt': '%d/%b/%Y %H:%M:%S'
+        },
+        'simple': {
+            'format': '[{asctime}] {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S'
+        },
+    },
+    'filters': {
+        'require_debug_true': {
+            '()': 'django.utils.log.RequireDebugTrue',
+        },
+        'require_debug_false': {
+            '()': 'django.utils.log.RequireDebugFalse',
+        }
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'filters': ['require_debug_true'],
+            'class': 'logging.StreamHandler',
+            'formatter': 'django.server'
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'propagate': False,
+        },
+    },
+}
+LOGGING = logger
