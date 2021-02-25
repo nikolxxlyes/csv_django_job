@@ -208,6 +208,8 @@ def download_csv(request, csv_id):
     if request.method == 'GET':
         csv_obj = get_object_or_404(CSV, pk=csv_id, schema__user=request.user)
         path = csv_obj.path
+        if csv_obj.ready == None:
+            return redirect('webcsv:csvs', csv_obj.schema.pk)
 
         if django_setting.HEROKU_FIX_FILE_CELERY:
             try:
