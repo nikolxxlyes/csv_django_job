@@ -141,8 +141,8 @@ if not os.path.exists(MEDIA_ROOT):
     os.mkdir(MEDIA_ROOT)
 
 # Celery Configuration Options
-CELERY_BROKER_URL = 'redis://192.168.0.24:6379/0'
-CELERY_RESULT_BACKEND = 'redis://192.168.0.24:6379/1'
+CELERY_BROKER_URL = os.environ['REDIS_URL']
+CELERY_RESULT_BACKEND = os.environ['REDIS_URL']
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_TIMEZONE = "Europe/Kiev"
