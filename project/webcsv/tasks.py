@@ -27,4 +27,3 @@ def get_file_data(path,csv_id):
         csv_obj = CSV.objects.get(pk=csv_id)
         csv_obj.ready = None
         csv_obj.save()
-        raise

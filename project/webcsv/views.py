@@ -212,6 +212,8 @@ def download_csv(request, csv_id):
         if django_setting.HEROKU_FIX_FILE_CELERY:
             try:
                 data = tasks.get_file_data.delay(path, csv_id).get(timeout=5)
+                if not data:
+                    raise FileNotFoundError
             except:
                 return redirect('webcsv:csvs', csv_obj.schema.pk)
             data = data.encode()
